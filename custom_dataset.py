@@ -23,39 +23,41 @@ class CustomDataset(Dataset):
     def __getitem__(self, idx):
         img_name = self.image_filenames[idx]
         mask_name = self.mask_filenames[idx]
-
+    
         # Load image and mask
         image_path = os.path.join(self.image_dir, img_name)
         mask_path = os.path.join(self.mask_dir, mask_name)
-
+    
         image = Image.open(image_path).convert("RGB")
-        mask = Image.open(mask_path).convert("L")  # Grayscale
-
-        # Apply image transform (resize etc.)
+        mask = Image.open(mask_path)  # Don't convert to L, let ToTensor handle it
+    
+        # Apply image transform
         if self.img_transform:
             image = self.img_transform(image)
-
-        # Convert mask to tensor (float in [0,1])
-        mask_tensor = self.mask_transform(mask).squeeze(0)  # shape: (H, W)
-
-        # Initialize class-mapped mask
-        class_mask = torch.zeros_like(mask_tensor, dtype=torch.long)  # LongTensor for class indices
-
-        # Mapping rules
+    
+        # Convert mask to tensor (shape: [1, H, W] → [H, W])
+        mask_tensor = self.mask_transform(mask).squeeze(0)
+    
+        # Initialize output class mask
+        class_mask = torch.zeros_like(mask_tensor, dtype=torch.long)
+    
+        # Rule 1: background = black = 0.0
         is_background = mask_tensor == 0.0
+    
+        # Rule 2: boundary = white = 1.0
         is_boundary = mask_tensor == 1.0
-
-        # Intermediate values between 0 and 1
-        is_catdog = (~is_background) & (~is_boundary)
-
-        # Apply known class mappings
-        class_mask[is_background] = 2  # background
-        class_mask[is_boundary] = 3    # boundary
-
-        # Determine cat vs dog by filename
-        if img_name[0].isupper():  # Cat
-            class_mask[is_catdog] = 0
-        else:  # Dog
-            class_mask[is_catdog] = 1
-
+    
+        # Rule 3: animal = in between
+        is_animal = (~is_background) & (~is_boundary)
+    
+        # Apply class labels
+        class_mask[is_background] = 2
+        class_mask[is_boundary] = 3
+    
+        # Determine cat (0) or dog (1) by **mask_name**
+        if mask_name[0].isupper():
+            class_mask[is_animal] = 0  # Cat
+        else:
+            class_mask[is_animal] = 1  # Dog
+    
         return image, class_mask, os.path.splitext(img_name)[0], os.path.splitext(mask_name)[0]
