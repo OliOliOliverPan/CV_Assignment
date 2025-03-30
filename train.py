@@ -39,7 +39,7 @@ if __name__ == "__main__":
         mask_dir=os.path.join(base_dir, "val_resized", "label"),
         transform=transforms.ToTensor()
     )
-    val_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+    val_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False, collate_fn=custom_collate_fn)
 
     # ====== Model & Multi-GPU ======
     model = UNet(in_channels=3, out_channels=4)
