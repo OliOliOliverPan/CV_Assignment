@@ -8,41 +8,40 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import optim
 from torch.utils.data import DataLoader
-from torchvision import transforms
 from tqdm import tqdm
 
-from custom_dataset import CustomDataset
+from custom_dataset import SegmentationAugment, CustomDataset
 from unet import UNet
+from enhanced_unet import EnhancedUNet
+
 if __name__ == "__main__":
-    base_dir = "/home/s2103701/Dataset_filtered"
+    # base_dir = "/home/s2103701/Dataset_filtered"
+    base_dir = "/Users/bin/Desktop/CV_Assignment/Dataset_filtered"
 
     # ====== Dataset and Dataloader ======
     train_dataset = CustomDataset(
-        image_dir=os.path.join(base_dir, "train_randaugmented", "color"),
-        mask_dir=os.path.join(base_dir, "train_randaugmented", "label"),
-        transform=transforms.ToTensor()
+        image_dir=os.path.join(base_dir, "train_resized", "color"),
+        mask_dir=os.path.join(base_dir, "train_resized", "label"),
+        transform=SegmentationAugment()
     )
 
     def custom_collate_fn(batch):
         images, masks, img_names, mask_names = zip(*batch)
 
-        img_names = [re.sub(r'(_aug_\d+|_orig)$', '', name) for name in img_names]
-        mask_names = [re.sub(r'(_aug_\d+|_orig)$', '', name) for name in mask_names]
-
         images = torch.stack(images)
         return images, list(masks), list(img_names), list(mask_names)
 
-    train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True, collate_fn=custom_collate_fn)
+    train_dataloader = DataLoader(train_dataset, batch_size=16, shuffle=True, collate_fn=custom_collate_fn)
 
     val_dataset = CustomDataset(
         image_dir=os.path.join(base_dir, "val_resized", "color"),
         mask_dir=os.path.join(base_dir, "val_resized", "label"),
-        transform=transforms.ToTensor()
     )
-    val_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False, collate_fn=custom_collate_fn)
+    val_dataloader = DataLoader(val_dataset, batch_size=16, shuffle=False, collate_fn=custom_collate_fn)
 
     # ====== Model & Multi-GPU ======
-    model = UNet(in_channels=3, out_channels=4)
+    # model = UNet(in_channels=3, out_channels=4)
+    model = EnhancedUNet(in_channels=3, out_channels=4)
 
     if torch.cuda.device_count() > 1:
         print(f"🔧 Using {torch.cuda.device_count()} GPUs with DataParallel.")
@@ -72,11 +71,11 @@ if __name__ == "__main__":
     # ====== Training config ======
     NUM_EPOCHS = 100
     PRINT_INTERVAL = 10
-    BEST_MODEL_PATH = "/home/s2103701/Model/model_100_epochs.pth"
+    BEST_MODEL_PATH = "/home/s2103701/Model/best_enhanced_unet_100_epochs_aug.pth"
     best_val_loss = float("inf")
 
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.002)
+    loss_fn = nn.CrossEntropyLoss(ignore_index = 4)
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     # ====== Training loop ======
     for epoch in range(NUM_EPOCHS):
@@ -137,7 +136,7 @@ if __name__ == "__main__":
     MODEL_PATH = Path("/home/s2103701/Model")
     MODEL_PATH.mkdir(parents=True, exist_ok=True)
 
-    MODEL_NAME = "unet_100_epochs.pth"
+    MODEL_NAME = "enhanced_unet_100_epochs_aug.pth"
     MODEL_SAVE_PATH = MODEL_PATH / MODEL_NAME
 
     print(f"Saving model to: {MODEL_SAVE_PATH}")
