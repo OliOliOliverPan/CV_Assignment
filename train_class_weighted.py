@@ -22,9 +22,8 @@ if __name__ == "__main__":
 
     # ====== Dataset and Dataloader ======
     train_dataset = CustomDataset(
-        image_dir=os.path.join(base_dir, "train_resized", "color"),
-        mask_dir=os.path.join(base_dir, "train_resized", "label"),
-        transform=SegmentationAugment()
+        image_dir=os.path.join(base_dir, "train_randaug", "color"),
+        mask_dir=os.path.join(base_dir, "train_randaug", "label"),
     )
 
     def custom_collate_fn(batch):
