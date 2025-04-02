@@ -19,7 +19,7 @@ TARGET_WIDTH = 256
 TARGET_HEIGHT = 256
 target_size = (TARGET_WIDTH, TARGET_HEIGHT)
 
-MODEL_PATH = '/Users/bin/Desktop/CV_Assignment/Model/unet_100_epochs_baseline_aug_nocrop.pth'
+MODEL_PATH = '/Users/bin/Desktop/CV_Assignment/Model/best_enhanced_unet_100_epochs_aug.pth'
 
 # -----------------------------------------
 # Resizing Functions
@@ -85,7 +85,8 @@ def evaluation(model_path):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # === Load model ===
-    model = UNet(in_channels=3, out_channels=NUM_CLASSES).to(device)
+    # model = UNet(in_channels=3, out_channels=NUM_CLASSES).to(device)
+    model = EnhancedUNet(in_channels=3,out_channels=4).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
 
@@ -231,20 +232,20 @@ if __name__ == "__main__":
     test_label_source = os.path.join(test_dir, "label")
 
     # Process test data
-    process_data(
-        color_source=test_color_source,
-        label_source=test_label_source,
-        resized_color_dest=resized_test_color_dir,
-        resized_label_dest=resized_test_label_dir,
-        original_sizes_dict=original_sizes_test
-    )
+    # process_data(
+    #     color_source=test_color_source,
+    #     label_source=test_label_source,
+    #     resized_color_dest=resized_test_color_dir,
+    #     resized_label_dest=resized_test_label_dir,
+    #     original_sizes_dict=original_sizes_test
+    # )
 
-    # Save test sizes JSON
-    test_size_json_path = os.path.join(base_dir, "original_sizes_test.json")
-    with open(test_size_json_path, "w") as f:
-        json.dump(original_sizes_test, f, indent=4)
+    # # Save test sizes JSON
+    # test_size_json_path = os.path.join(base_dir, "original_sizes_test.json")
+    # with open(test_size_json_path, "w") as f:
+    #     json.dump(original_sizes_test, f, indent=4)
 
-    print(f"✅ Test data processed. Test mask sizes saved to {test_size_json_path}")
+    # print(f"✅ Test data processed. Test mask sizes saved to {test_size_json_path}")
 
     evaluation(model_path=MODEL_PATH)
     

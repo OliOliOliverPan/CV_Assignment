@@ -9,6 +9,8 @@ import torch.nn.functional as F
 from torch import optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from PIL import Image
+from torchvision import transforms
 
 from custom_dataset import SegmentationAugment, CustomDataset
 from unet import UNet
@@ -67,17 +69,60 @@ if __name__ == "__main__":
             )
             resized_logits.append(resized.squeeze(0))  # shape: (4, H, W)
         return resized_logits
+    
+    # ====== ⭐️  Compute class weights for loss balancing  ⭐️ ======
+    # 我们只统计类别 0~3（对应最终的标签：0:Cat, 1:Dog, 2:Background, 3:Boundary），
+    # mapping规则与CustomDataset中一致：
+    #   - 将原始mask先转为 [0,1] float (背景=0，边界=1)
+    #   - 然后设 is_background = (mask==0), is_boundary = (mask==1)
+    #   - 对于非背景非边界部分，若文件名首字母为大写，则为 Cat (0)，否则为 Dog (1)
+    #   - 最后，将背景赋值为 2，边界赋值为 3。
+    print("📊 Computing class weights for loss balancing...")
+    mask_dir = os.path.join(base_dir, "train_resized", "label")
+    num_classes = 4  # 只统计类别 0-3
+    class_counts = torch.zeros(num_classes)
+
+    for filename in tqdm(sorted(os.listdir(mask_dir))):
+        if filename.endswith(".png"):
+            # ⭐️ 使用 PIL 读取 mask，并将其转换为 numpy 数组
+            mask = Image.open(os.path.join(mask_dir, filename)).convert("L")
+            mask_np = np.array(mask).astype(np.float32) / 255.0  # 归一化到 [0,1]
+            # 根据映射规则生成最终 label:
+            # 初始化输出（默认值0）
+            mapped = np.zeros_like(mask_np, dtype=np.int64)
+            is_background = (mask_np == 0.0)
+            is_boundary = (mask_np == 1.0)
+            is_catdog = (~is_background) & (~is_boundary)
+            # 根据文件名判断动物类别
+            if filename[0].isupper():
+                mapped[is_catdog] = 0  # Cat
+            else:
+                mapped[is_catdog] = 1  # Dog
+            mapped[is_background] = 2  # Background
+            mapped[is_boundary] = 3    # Boundary
+            # 累计各类像素数
+            for cls in range(num_classes):
+                class_counts[cls] += (mapped == cls).sum()
+    print("✅ Class pixel counts (for classes 0-3):", class_counts.tolist())
+    
+    # 使用倒数作为权重
+    weights = 1.0 / (class_counts + 1e-6)
+    weights = weights / weights.sum()  # normalize
+    print("🎯 Class weights:", weights.tolist())
+    # 注意：由于模型预测只有 4 类，因此 loss_fn 的 weight 参数应为长度为4的张量
 
     # ====== Training config ======
     NUM_EPOCHS = 500
     PRINT_INTERVAL = 10
-    BEST_MODEL_PATH = "/home/s2103701/Model/best_enhanced_unet_500_epochs_aug.pth"
+    BEST_MODEL_PATH = "/home/s2103701/Model/best_unet_500_epochs_baseline_aug.pth"
     best_val_loss = float("inf")
-
     patience = 10
     early_stop_counter = 0
 
-    loss_fn = nn.CrossEntropyLoss(ignore_index = 4)
+    # loss_fn = nn.CrossEntropyLoss(ignore_index = 4)
+    # optimizer = optim.Adam(model.parameters(), lr=0.001)
+    # ⭐️ 设置 CrossEntropyLoss, 使用 ignore_index=4 来忽略 unknown（ground truth中的值为4） 
+    loss_fn = nn.CrossEntropyLoss(weight=weights.to(device), ignore_index=4)
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     # ====== Training loop ======
