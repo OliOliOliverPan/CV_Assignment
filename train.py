@@ -39,8 +39,8 @@ if __name__ == "__main__":
     val_dataloader = DataLoader(val_dataset, batch_size=16, shuffle=False, collate_fn=custom_collate_fn)
 
     # ====== Model & Multi-GPU ======
-    model = UNet(in_channels=3, out_channels=4)
-    # model = EnhancedUNet(in_channels=3, out_channels=4)
+    # model = UNet(in_channels=3, out_channels=4)
+    model = EnhancedUNet(in_channels=3, out_channels=4)
 
     if torch.cuda.device_count() > 1:
         print(f"🔧 Using {torch.cuda.device_count()} GPUs with DataParallel.")
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     patience = 10
     early_stop_counter = 0
 
-    loss_fn = nn.CrossEntropyLoss(ignore_index = 4)
+    loss_fn = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     # ====== Training loop ======

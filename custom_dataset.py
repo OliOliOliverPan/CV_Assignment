@@ -86,23 +86,21 @@ class CustomDataset(Dataset):
         image = self.img_tensor_transform(image)
         mask_tensor = self.mask_to_tensor(mask).squeeze(0)
 
-        # Initialize final class mask with default value 4 (unknown)
-        class_mask = torch.full_like(mask_tensor, fill_value=4, dtype=torch.long)
-
-        # Mapping rules
+        # Initialize final class mask
+        class_mask = torch.zeros_like(mask_tensor, dtype=torch.long)
+        
+        # Mapping rules:
         is_background = mask_tensor == 0.0
         is_boundary = mask_tensor == 1.0
-        is_unknown = mask_tensor == 255.0 / 255.0
+        is_catdog = ~(is_background | is_boundary)  # 其余像素
 
-        is_catdog = (~is_background) & (~is_boundary) & (~is_unknown)
+        class_mask[is_background] = 2  # Background
+        class_mask[is_boundary] = 3    # Boundary
 
-        class_mask[is_background] = 2  # background
-        class_mask[is_boundary] = 3    # boundary
+        # 根据文件名判断：若首字母大写则为 Cat，否则为 Dog
+        if img_name[0].isupper():
+            class_mask[is_catdog] = 0  # Cat
+        else:
+            class_mask[is_catdog] = 1  # Dog
 
-        if img_name[0].isupper():      # Cat
-            class_mask[is_catdog] = 0
-        else:                          # Dog
-            class_mask[is_catdog] = 1
-
-        # Return 4 items: image, label mask, image name, mask name
         return image, class_mask, os.path.splitext(img_name)[0], os.path.splitext(mask_name)[0]
