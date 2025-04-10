@@ -10,19 +10,18 @@ from torchmetrics import JaccardIndex
 from torchmetrics.segmentation import DiceScore
 import os, json
 from tqdm import tqdm
-from unet import UNet
 from custom_dataset import CustomDataset
 from enhanced_unet import EnhancedUNet
 
-# Set target dimensions (adjust as needed)
+# Set target dimensions
 TARGET_WIDTH = 256
 TARGET_HEIGHT = 256
 target_size = (TARGET_WIDTH, TARGET_HEIGHT)
 
-MODEL_PATH = '/Users/bin/Desktop/CV_Assignment/Model/best_enhanced_unet_100_epochs_aug.pth'
+MODEL_PATH = '/Users/bin/Desktop/CV_Assignment/Model/best_enhanced_unet_500_epochs_aug.pth'
 
 # -----------------------------------------
-# Resizing Functions
+# Resizing Test Set Functions
 # -----------------------------------------
 
 def resize_and_save(src_path, dst_path, target_size):
@@ -61,11 +60,10 @@ def process_data(color_source, label_source, resized_color_dest, resized_label_d
                 print("Error reading mask:", src_path)
                 continue
 
-            # 🔥 Clean filename key: remove suffix like ".png"
-            img_key = os.path.splitext(filename)[0]  # "Abyssinian_1.png" → "Abyssinian_1"
-            original_sizes_dict[img_key] = list(mask.shape)  # Ensure JSON serializable: [H, W]
+            # Clean filename key: remove suffix like ".png"
+            img_key = os.path.splitext(filename)[0]
+            original_sizes_dict[img_key] = list(mask.shape)
 
-            # Copy mask as-is
             shutil.copy2(src_path, dst_path)
 
 
@@ -85,7 +83,6 @@ def evaluation(model_path):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # === Load model ===
-    # model = UNet(in_channels=3, out_channels=NUM_CLASSES).to(device)
     model = EnhancedUNet(in_channels=3,out_channels=4).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
@@ -123,7 +120,7 @@ def evaluation(model_path):
     with torch.no_grad():
         for images, masks, img_names, _ in tqdm(test_loader):
             images = images.to(device)
-            masks = [m.to(device).long() for m in masks]  # each m: (H, W)
+            masks = [m.to(device).long() for m in masks]  # each mask: (H, W)
 
             logits = model(images)  # (B, C, 256, 256)
 
@@ -172,7 +169,7 @@ def evaluation(model_path):
     )
 
     # === Print results
-    print("\n📊 Per-Class Evaluation on Test Set:")
+    print("\nPer-Class Evaluation on Test Set:")
     for i in range(NUM_CLASSES):
         if i == IGNORED_CLASS:
             continue
@@ -184,11 +181,11 @@ def evaluation(model_path):
     mean_iou = torch.stack(valid_iou_scores).mean()
     mean_dice = torch.stack(valid_dice_scores).mean()
 
-    print(f"\n➡️ Mean IoU (excluding Boundary): {mean_iou:.4f}")
-    print(f"➡️ Mean Dice (excluding Boundary): {mean_dice:.4f}")
+    print(f"\nMean IoU (excluding Boundary): {mean_iou:.4f}")
+    print(f"Mean Dice (excluding Boundary): {mean_dice:.4f}")
 
     # === Per-class pixel accuracy
-    print(f"\n📌 Pixel Accuracy Per Class (excluding Boundary):")
+    print(f"\nPixel Accuracy Per Class (excluding Boundary):")
     per_class_accuracies = []
     
     for i in range(NUM_CLASSES):
@@ -203,7 +200,7 @@ def evaluation(model_path):
     
     # === Mean Per-Class Accuracy
     mean_accuracy = torch.stack(per_class_accuracies).mean()
-    print(f"\n📈 Mean Per-Class Pixel Accuracy (excluding Boundary): {mean_accuracy:.4f}")
+    print(f"\nMean Per-Class Pixel Accuracy (excluding Boundary): {mean_accuracy:.4f}")
 
 
 
@@ -232,20 +229,19 @@ if __name__ == "__main__":
     test_label_source = os.path.join(test_dir, "label")
 
     # Process test data
-    # process_data(
-    #     color_source=test_color_source,
-    #     label_source=test_label_source,
-    #     resized_color_dest=resized_test_color_dir,
-    #     resized_label_dest=resized_test_label_dir,
-    #     original_sizes_dict=original_sizes_test
-    # )
+    process_data(
+        color_source=test_color_source,
+        label_source=test_label_source,
+        resized_color_dest=resized_test_color_dir,
+        resized_label_dest=resized_test_label_dir,
+        original_sizes_dict=original_sizes_test
+    )
 
-    # # Save test sizes JSON
-    # test_size_json_path = os.path.join(base_dir, "original_sizes_test.json")
-    # with open(test_size_json_path, "w") as f:
-    #     json.dump(original_sizes_test, f, indent=4)
+    # Save test sizes JSON
+    test_size_json_path = os.path.join(base_dir, "original_sizes_test.json")
+    with open(test_size_json_path, "w") as f:
+        json.dump(original_sizes_test, f, indent=4)
 
-    # print(f"✅ Test data processed. Test mask sizes saved to {test_size_json_path}")
+    print(f"Test data processed. Test mask sizes saved to {test_size_json_path}")
 
     evaluation(model_path=MODEL_PATH)
-    

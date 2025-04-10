@@ -137,9 +137,3 @@ class EnhancedUNet(nn.Module):
         d1 = self.up1(d2, e1)
         out = self.final_conv(d1)
         return out
-
-# if __name__ == "__main__":
-#     model = EnhancedUNet(in_channels=3, out_channels=4)
-#     x = torch.randn(1, 3, 256, 256)
-#     y = model(x)
-#     print("Output shape:", y.shape)  # output shape (1, 4, 256, 256)
